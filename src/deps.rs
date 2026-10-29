@@ -11,6 +11,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use debian_control::relations::VersionConstraint;
+use toml_edit::{Array, DocumentMut, value};
 
 use crate::{
     apt,
@@ -210,7 +211,7 @@ pub fn run(args: DepArgs, crates_io_api: &str) -> Result<bool> {
     let mut release = None;
     let (sections, header, mut identity) = match &input {
         Input::Crate(_) | Input::Local(_) => {
-            let (request, config) = match &input {
+            let (request, mut config) = match &input {
                 Input::Crate(name) => (
                     resolve::CrateRequest::Registry {
                         name,
@@ -224,6 +225,10 @@ pub fn run(args: DepArgs, crates_io_api: &str) -> Result<bool> {
                 ),
                 _ => unreachable!(),
             };
+            // Dependency inspection can run before source-file packaging review.
+            let mut document: DocumentMut = config.original_contents.parse()?;
+            document["whitelist"] = value(Array::from_iter(["*"]));
+            config.original_contents = document.to_string();
             let resolved = resolve::resolve_package(request, config, None, crates_io_api)?;
             if matches!(input, Input::Crate(_)) && args.version.is_some() {
                 release = Some(match &resolved.latest_version {
