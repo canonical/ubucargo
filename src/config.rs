@@ -8,7 +8,8 @@ use std::{
 use anyhow::{Context, Result, bail};
 use toml_edit::{DocumentMut, value};
 
-const UBUNTU_MAINTAINER: &str = "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>";
+/// Default maintainer for new Ubuntu packages.
+pub const UBUNTU_MAINTAINER: &str = "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>";
 
 /// Snapshot of the configuration intended for the final package and its effective values.
 pub struct PackageConfig {

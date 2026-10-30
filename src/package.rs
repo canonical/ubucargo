@@ -9,11 +9,12 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use debian_control::lossless::control::Control;
+use toml_edit::{DocumentMut, value};
 
 use crate::{
     changelog::read_top_changelog,
     config::{
-        PackageConfig, get_new_local_package_config, get_new_package_config,
+        PackageConfig, UBUNTU_MAINTAINER, get_new_local_package_config, get_new_package_config,
         get_package_config_path, read_package_config, relocate_package_config,
         write_package_config,
     },
@@ -147,6 +148,11 @@ pub fn run(args: PackageArgs, crates_io_api: &str) -> Result<()> {
         (config, Some(existing))
     } else if let Some(path) = &args.config {
         let mut config = read_package_config(&current.join(path), local)?;
+        let mut document: DocumentMut = config.original_contents.parse()?;
+        if !document.contains_key("maintainer") {
+            document["maintainer"] = value(UBUNTU_MAINTAINER);
+            config.original_contents = document.to_string();
+        }
         relocate_package_config(&mut config, &destination)?;
         (config, None)
     } else if let Some(local) = local {

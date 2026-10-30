@@ -69,7 +69,7 @@ Output identifies the operation as `Create new package: <DIR>`, `Update existing
 
 ## Initial configuration
 
-`--config <PATH>` supplies the initial debcargo configuration for a new package from crates.io or a local Cargo input. The file is used during generation and saved as `debian/debcargo.toml`. See debcargo's [`debcargo.toml.example`](https://salsa.debian.org/rust-team/debcargo/-/blob/master/debcargo.toml.example) for the available settings. For example, save the following configuration as `bevy.toml` to enable prerelease dependency conversion:
+`--config <PATH>` supplies the initial debcargo configuration for a new package from crates.io or a local Cargo input. Ubucargo adds `maintainer = "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"` when the field is absent, preserving an explicit value. The resulting configuration is used during generation and saved as `debian/debcargo.toml`; the supplied file stays untouched. This also applies to `--prepare-only`. See debcargo's [`debcargo.toml.example`](https://salsa.debian.org/rust-team/debcargo/-/blob/master/debcargo.toml.example) for the available settings. For example, save the following configuration as `bevy.toml` to enable prerelease dependency conversion:
 
 ```toml
 allow_prerelease_deps = true
@@ -179,7 +179,7 @@ By default, the initial configuration for both crates.io and local crates includ
 maintainer = "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
 ```
 
-This setting gives debcargo the same maintainer for the first generation and subsequent runs, including the generated `debian/*` copyright attribution. A supplied `--config` provides the initial maintainer settings. Existing configurations are retained; initializing a copy rebases any relative local-crate path to preserve its meaning.
+This setting gives debcargo the same maintainer for the first generation and subsequent runs, including the generated `debian/*` copyright attribution. A supplied `--config` uses this default when `maintainer` is absent and otherwise supplies its explicit value to debcargo. The generated control file then receives the Ubuntu maintainer adjustment described below. Existing configurations are retained; initializing a copy rebases any relative local-crate path to preserve its meaning.
 
 When updating an existing package, ubucargo preserves durable maintainer-owned state:
 
