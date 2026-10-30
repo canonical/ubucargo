@@ -33,20 +33,20 @@ const PACKAGE_MANAGED_PATHS: &[&str] = &[
 const EXPECTED_UNMANAGED_OUTPUTS: &[&str] = &["debian/changelog", "debian/source/format"];
 
 /// Applies Ubuntu maintainer fields to staged debcargo output.
-pub fn update_staged_maintainer(stage: &Path) -> Result<()> {
+pub fn update_staged_maintainer(source: &Path) -> Result<()> {
     run_command(
         Command::new("update-maintainer")
             .arg("--quiet")
             .arg("--debian-directory")
-            .arg(stage.join("output/debian")),
+            .arg(source.join("debian")),
         "update-maintainer",
     )?;
     Ok(())
 }
 
 /// Removes Debian packaging repository fields from generated control output.
-pub fn remove_generated_vcs_fields(stage: &Path) -> Result<()> {
-    let path = stage.join("output/debian/control");
+pub fn remove_generated_vcs_fields(source: &Path) -> Result<()> {
+    let path = source.join("debian/control");
     let control = Control::from_file(&path).with_context(|| format!("parse {}", path.display()))?;
     let mut source = control
         .source()
@@ -124,12 +124,12 @@ pub fn collect_managed_paths(
 }
 
 /// Builds the patch-series update from debcargo's merged output.
-pub fn build_patch_series_plan(debian: &Path, stage: &Path) -> Result<PathPlan> {
+pub fn build_patch_series_plan(debian: &Path, source: &Path) -> Result<PathPlan> {
     Ok(PathPlan {
         path: PathBuf::from("debian/patches/series"),
         old: read_state(&debian.join("patches/series"))?,
         hint_before: None,
-        primary_after: read_state(&stage.join("output/debian/patches/series"))?,
+        primary_after: read_state(&source.join("debian/patches/series"))?,
         hint_after: None,
         overridden: false,
         unresolved: false,

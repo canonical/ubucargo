@@ -400,9 +400,10 @@ Ubucargo stages the complete candidate before modifying the destination. In-plac
 The staged invocation is equivalent to:
 
 ```console
+cd "/<TEMPORARY PATH>/stage/output"
 debcargo package \
   --config /<TEMPORARY PATH>/stage/debcargo.toml \
-  --directory /<TEMPORARY PATH>/stage/output \
+  --directory "/<TEMPORARY PATH>/stage/output/<DESTINATION NAME>" \
   --no-overlay-write-back \
   --changelog-ready \
   <CRATE> <VERSION>

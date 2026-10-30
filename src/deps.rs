@@ -7,6 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     io::{self, IsTerminal},
+    path::Path,
 };
 
 use anyhow::{Context, Result, bail};
@@ -246,6 +247,7 @@ pub fn run(args: DepArgs, crates_io_api: &str) -> Result<bool> {
             );
             let generated = generate::generate_package(
                 &resolved,
+                Path::new(&resolved.source_name),
                 args.keep_staging,
                 generate::GenerationMode::Full,
                 false,

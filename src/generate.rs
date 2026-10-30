@@ -44,6 +44,7 @@ pub struct GeneratedPackage {
 /// Generates and validates a staged source package using the resolved release and configuration.
 pub fn generate_package(
     package: &ResolvedPackage,
+    destination: &Path,
     keep_staging: bool,
     mode: GenerationMode,
     show_fixmes: bool,
@@ -55,6 +56,14 @@ pub fn generate_package(
     if keep_staging {
         eprintln!("package staging directory: {}", stage.path().display());
     }
+    // Isolate destination names from staging files and use them in debcargo's relative diagnostics.
+    let output = stage.path().join("output");
+    fs::create_dir(&output)?;
+    let source = output.join(
+        destination
+            .file_name()
+            .context("package destination has no name")?,
+    );
     let overlay = stage.path().join("overlay");
     fs::create_dir(&overlay)?;
     let deferred_series = if mode == GenerationMode::Full
@@ -69,13 +78,11 @@ pub fn generate_package(
     };
     write_staged_config(&package.config, stage.path())?;
     prepare_changelog(package, &overlay.join("changelog"), mode)?;
-    run_debcargo(stage.path(), package, show_fixmes)?;
-    restore_deferred_series(
-        &stage.path().join("output/debian/patches"),
-        &deferred_series,
-    )?;
+    run_debcargo(stage.path(), &source, package, show_fixmes)?;
+    restore_deferred_series(&source.join("debian/patches"), &deferred_series)?;
     validate_debcargo_output(
         stage,
+        source,
         &package.source_name,
         &package.upstream,
         &package.crate_selection.crate_name,
@@ -137,19 +144,24 @@ fn restore_deferred_series(patches: &Path, deferred_series: &str) -> Result<()> 
 }
 
 /// Runs final debcargo generation for one exact selected release.
-fn run_debcargo(stage: &Path, package: &ResolvedPackage, show_fixmes: bool) -> Result<()> {
+fn run_debcargo(
+    stage: &Path,
+    source: &Path,
+    package: &ResolvedPackage,
+    show_fixmes: bool,
+) -> Result<()> {
     let mut command = Command::new("debcargo");
     command
         .arg("package")
         .arg("--config")
         .arg(get_staged_config_path(stage))
         .arg("--directory")
-        .arg(stage.join("output"))
+        .arg(source)
         .arg("--no-overlay-write-back")
         .arg("--changelog-ready")
         .arg(&package.crate_selection.crate_name)
         .arg(&package.crate_selection.version)
-        .current_dir(stage);
+        .current_dir(source.parent().unwrap());
     if package.config.resolved_crate_src_path.is_some() {
         // Local packaging needs a unique target directory: rust-lang/cargo#16683.
         command.env("CARGO_TARGET_DIR", stage.join("cargo-target"));
@@ -163,13 +175,13 @@ fn run_debcargo(stage: &Path, package: &ResolvedPackage, show_fixmes: bool) -> R
 /// Validates staged source identity, Cargo identity, essential packaging, and orig naming.
 fn validate_debcargo_output(
     stage: TempDir,
+    source: PathBuf,
     expected_source: &str,
     expected_upstream: &str,
     requested_name: &str,
     requested_version: &str,
     mode: GenerationMode,
 ) -> Result<GeneratedPackage> {
-    let source = stage.path().join("output");
     for path in [
         source.join("Cargo.toml"),
         source.join("debian/changelog"),
@@ -213,8 +225,9 @@ fn validate_debcargo_output(
         bail!("debcargo changed the prepared changelog despite --changelog-ready");
     }
 
-    let orig = stage
-        .path()
+    let orig = source
+        .parent()
+        .unwrap()
         .join(format!("{expected_source}_{expected_upstream}.orig.tar.gz"));
     if !orig.is_file() {
         bail!("debcargo produced no {}", orig.display());

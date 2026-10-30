@@ -222,13 +222,13 @@ pub fn run(args: PackageArgs, crates_io_api: &str) -> Result<()> {
     } else {
         None
     };
-    let generated = generate_package(&resolved, args.keep_staging, mode, true)?;
+    let generated = generate_package(&resolved, &destination, args.keep_staging, mode, true)?;
     // Capture debcargo's raw control before Ubuntu adjustments so a
     // matching imported control can establish ownership during migration.
     let raw_control = if mode == GenerationMode::Full {
         let control = read_state(&generated.source.join("debian/control"))?;
-        remove_generated_vcs_fields(generated.stage.path())?;
-        update_staged_maintainer(generated.stage.path())?;
+        remove_generated_vcs_fields(&generated.source)?;
+        update_staged_maintainer(&generated.source)?;
         control
     } else {
         None
@@ -423,7 +423,7 @@ fn build_update_plan(
         )?;
         generated_plan
             .paths
-            .push(build_patch_series_plan(&debian, generated.stage.path())?);
+            .push(build_patch_series_plan(&debian, &generated.source)?);
         let ambiguities = generated_plan.collect_ambiguities();
         if !ambiguities.is_empty() {
             for path in ambiguities {
