@@ -9,16 +9,16 @@ use anyhow::Result;
 use crate::util;
 
 /// Reports filtered output on success and preserves full diagnostics on failure.
-pub fn run_command(command: &mut Command, operation: &str) -> Result<()> {
+pub fn run_command(command: &mut Command, operation: &str, show_fixmes: bool) -> Result<()> {
     let output = util::run_command(command, operation)?;
     for stream in [&output.stdout, &output.stderr] {
-        eprint!("{}", filter_output(stream));
+        eprint!("{}", filter_output(stream, show_fixmes));
     }
     Ok(())
 }
 
-/// Removes known progress and FIXME advice, retaining other diagnostic lines.
-fn filter_output(output: &[u8]) -> String {
+/// Removes known progress and repair advice, optionally retaining the FIXME list.
+fn filter_output(output: &[u8], show_fixmes: bool) -> String {
     let mut filtered = String::new();
     let mut in_fixme_report = false;
     for line in String::from_utf8_lossy(output).lines() {
@@ -41,10 +41,9 @@ fn filter_output(output: &[u8]) -> String {
             in_fixme_report = false;
             continue;
         }
-        if matches!(
-            text,
-            "FIXME found in the following files." | "To fix, try combinations of the following:"
-        ) {
+        if text == "To fix, try combinations of the following:"
+            || (!show_fixmes && text == "FIXME found in the following files.")
+        {
             in_fixme_report = true;
             continue;
         }

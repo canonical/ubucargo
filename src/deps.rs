@@ -248,6 +248,7 @@ pub fn run(args: DepArgs, crates_io_api: &str) -> Result<bool> {
                 &resolved,
                 args.keep_staging,
                 generate::GenerationMode::Full,
+                false,
             )?;
             (
                 control::read_dependency_sections(&generated.source, &architecture)?,

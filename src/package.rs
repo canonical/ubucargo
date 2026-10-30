@@ -222,7 +222,7 @@ pub fn run(args: PackageArgs, crates_io_api: &str) -> Result<()> {
     } else {
         None
     };
-    let generated = generate_package(&resolved, args.keep_staging, mode)?;
+    let generated = generate_package(&resolved, args.keep_staging, mode, true)?;
     // Capture debcargo's raw control before Ubuntu adjustments so a
     // matching imported control can establish ownership during migration.
     let raw_control = if mode == GenerationMode::Full {

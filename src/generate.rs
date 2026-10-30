@@ -46,6 +46,7 @@ pub fn generate_package(
     package: &ResolvedPackage,
     keep_staging: bool,
     mode: GenerationMode,
+    show_fixmes: bool,
 ) -> Result<GeneratedPackage> {
     let stage = tempfile::Builder::new()
         .disable_cleanup(keep_staging)
@@ -68,7 +69,7 @@ pub fn generate_package(
     };
     write_staged_config(&package.config, stage.path())?;
     prepare_changelog(package, &overlay.join("changelog"), mode)?;
-    run_debcargo(stage.path(), package)?;
+    run_debcargo(stage.path(), package, show_fixmes)?;
     restore_deferred_series(
         &stage.path().join("output/debian/patches"),
         &deferred_series,
@@ -136,7 +137,7 @@ fn restore_deferred_series(patches: &Path, deferred_series: &str) -> Result<()> 
 }
 
 /// Runs final debcargo generation for one exact selected release.
-fn run_debcargo(stage: &Path, package: &ResolvedPackage) -> Result<()> {
+fn run_debcargo(stage: &Path, package: &ResolvedPackage, show_fixmes: bool) -> Result<()> {
     let mut command = Command::new("debcargo");
     command
         .arg("package")
@@ -156,7 +157,7 @@ fn run_debcargo(stage: &Path, package: &ResolvedPackage) -> Result<()> {
         // Registry normalization uses the isolated extracted tree's target directory.
         command.env_remove("CARGO_TARGET_DIR");
     }
-    debcargo::run_command(&mut command, "debcargo package")
+    debcargo::run_command(&mut command, "debcargo package", show_fixmes)
 }
 
 /// Validates staged source identity, Cargo identity, essential packaging, and orig naming.
