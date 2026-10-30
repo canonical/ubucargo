@@ -2,7 +2,8 @@
 
 use std::{
     fs,
-    path::{Path, PathBuf},
+    io::Read,
+    path::{Component, Path, PathBuf},
     process::Command,
 };
 
@@ -79,6 +80,9 @@ pub fn generate_package(
     write_staged_config(&package.config, stage.path())?;
     prepare_changelog(package, &overlay.join("changelog"), mode)?;
     run_debcargo(stage.path(), &source, package, show_fixmes)?;
+    if mode == GenerationMode::Full {
+        update_spdx_licenses(&source)?;
+    }
     restore_deferred_series(&source.join("debian/patches"), &deferred_series)?;
     validate_debcargo_output(
         stage,
@@ -172,6 +176,97 @@ fn run_debcargo(
     debcargo::run_command(&mut command, "debcargo package", show_fixmes)
 }
 
+/// Replaces debcargo's unknown file licenses with SPDX identifiers from source headers.
+fn update_spdx_licenses(source: &Path) -> Result<()> {
+    let copyright_path = source.join("debian/copyright");
+    let contents = fs::read_to_string(&copyright_path)
+        .with_context(|| format!("read {}", copyright_path.display()))?;
+    let source_root = source.canonicalize()?;
+    let mut output = String::with_capacity(contents.len());
+    let mut files = None;
+    let mut changed = false;
+
+    for line in contents.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\r', '\n']);
+        if content.is_empty() {
+            files = None;
+        } else if let Some(path) = content.strip_prefix("Files: ") {
+            files = Some(path.trim());
+        } else if content == "License: UNKNOWN-LICENSE; FIXME (overlay)"
+            && let Some(path) = files
+            && let Some(identifier) = read_spdx_identifier(&source_root, path)?
+        {
+            output.push_str("License: ");
+            output.push_str(&identifier);
+            output.push_str(&line[content.len()..]);
+            changed = true;
+            continue;
+        }
+        output.push_str(line);
+    }
+
+    if changed {
+        fs::write(&copyright_path, output)
+            .with_context(|| format!("write {}", copyright_path.display()))?;
+    }
+    Ok(())
+}
+
+/// Reads a safe source path's SPDX license identifier from its header, if present.
+fn read_spdx_identifier(source: &Path, path: &str) -> Result<Option<String>> {
+    let relative = Path::new(path);
+    if relative.as_os_str().is_empty()
+        || relative
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Ok(None);
+    }
+
+    let path = source.join(relative);
+    let resolved = match path.canonicalize() {
+        Ok(path) if path.starts_with(source) => path,
+        Ok(_) => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).with_context(|| format!("resolve {}", path.display())),
+    };
+    if !resolved.is_file() {
+        return Ok(None);
+    }
+
+    let mut contents = Vec::new();
+    fs::File::open(&resolved)
+        .with_context(|| format!("read {}", resolved.display()))?
+        .take(16 * 1024)
+        .read_to_end(&mut contents)
+        .with_context(|| format!("read {}", resolved.display()))?;
+    let contents = String::from_utf8_lossy(&contents);
+    let mut identifier = None;
+    for line in contents.lines() {
+        let Some((_, value)) = line.split_once("SPDX-License-Identifier:") else {
+            continue;
+        };
+        let value = value.trim();
+        if value.is_empty()
+            || !value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric()
+                    || byte.is_ascii_whitespace()
+                    || matches!(byte, b'-' | b'.' | b'+' | b'(' | b')' | b':')
+            })
+        {
+            continue;
+        }
+        if identifier
+            .as_deref()
+            .is_some_and(|previous| previous != value)
+        {
+            return Ok(None);
+        }
+        identifier = Some(value.to_owned());
+    }
+    Ok(identifier)
+}
+
 /// Validates staged source identity, Cargo identity, essential packaging, and orig naming.
 fn validate_debcargo_output(
     stage: TempDir,
@@ -238,4 +333,57 @@ fn validate_debcargo_output(
         source,
         orig,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::update_spdx_licenses;
+
+    /// Maps the SPDX identifier from a copyright-notice file into its generated paragraph.
+    #[test]
+    fn update_generated_copyright_from_spdx_header() {
+        let source = tempfile::tempdir().unwrap();
+        fs::create_dir(source.path().join("debian")).unwrap();
+        fs::create_dir(source.path().join("src")).unwrap();
+        fs::write(
+            source.path().join("src/lib.rs"),
+            "// Copyright 2025 Example Author\n//\n// SPDX-License-Identifier: Apache-2.0\n",
+        )
+        .unwrap();
+        fs::write(
+            source.path().join("debian/copyright"),
+            "Files: src/lib.rs\nCopyright: 2025 Example Author\nLicense: UNKNOWN-LICENSE; FIXME (overlay)\n\nLicense: Apache-2.0\n",
+        )
+        .unwrap();
+
+        update_spdx_licenses(source.path()).unwrap();
+
+        let copyright = fs::read_to_string(source.path().join("debian/copyright")).unwrap();
+        assert!(copyright.contains("License: Apache-2.0\n"));
+        assert!(!copyright.contains("License: UNKNOWN-LICENSE; FIXME (overlay)"));
+    }
+
+    /// Leaves global or unrelated unknown license paragraphs unchanged.
+    #[test]
+    fn preserves_unmatched_unknown_copyright_licenses() {
+        let source = tempfile::tempdir().unwrap();
+        fs::create_dir(source.path().join("debian")).unwrap();
+        fs::create_dir(source.path().join("src")).unwrap();
+        fs::write(
+            source.path().join("src/lib.rs"),
+            "// Copyright 2025 Example Author\n// SPDX-License-Identifier: Apache-2.0\n",
+        )
+        .unwrap();
+        let copyright = "Files: *\nLicense: UNKNOWN-LICENSE; FIXME (overlay)\n\nFiles: src/other.rs\nLicense: UNKNOWN-LICENSE; FIXME (overlay)\n";
+        fs::write(source.path().join("debian/copyright"), copyright).unwrap();
+
+        update_spdx_licenses(source.path()).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(source.path().join("debian/copyright")).unwrap(),
+            copyright
+        );
+    }
 }
