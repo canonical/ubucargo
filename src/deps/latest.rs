@@ -40,8 +40,8 @@ pub fn read_latest_release(crate_name: Option<&str>, api: &str) -> LatestRelease
         return LatestRelease::Unavailable;
     };
     match crates_io::read_crate(crate_name, api) {
-        Ok(Some(metadata)) => match metadata.latest_version {
-            Some(version) => LatestRelease::Version(version),
+        Ok(Some(metadata)) => match metadata.versions.first() {
+            Some(version) => LatestRelease::Version(version.clone()),
             None => LatestRelease::NoStableRelease,
         },
         Ok(None) => LatestRelease::NotPublished,

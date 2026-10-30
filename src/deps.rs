@@ -46,7 +46,7 @@ pub struct DepArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<String>,
 
-    /// Exact Cargo or Debian source version; local inputs reject versions.
+    /// Cargo version or version prefix, or exact Debian source version; local inputs reject versions.
     #[arg(value_name = "VERSION", requires = "input")]
     pub version: Option<String>,
 

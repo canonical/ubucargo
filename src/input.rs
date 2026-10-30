@@ -217,7 +217,14 @@ pub fn validate_version(input: &Input, version: Option<&str>) -> Result<()> {
     if let Some(version) = version {
         match input {
             Input::Crate(_) => {
-                crate::resolve::parse_exact_version(version)?;
+                let full_version = match version.split('.').count() {
+                    1 => format!("{version}.0.0"),
+                    2 => format!("{version}.0"),
+                    _ => version.to_owned(),
+                };
+                semver::Version::parse(&full_version).with_context(|| {
+                    format!("{version:?} is not a Cargo version or version prefix")
+                })?;
             }
             Input::Archive { .. } | Input::Ppa { .. } => {
                 version

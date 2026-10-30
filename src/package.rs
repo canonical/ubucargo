@@ -51,7 +51,7 @@ pub struct PackageArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<String>,
 
-    /// Exact Cargo or Debian source version; defaults to the latest selected release.
+    /// Cargo version or version prefix, or exact Debian source version; defaults to the latest selected release.
     #[arg(value_name = "VERSION", requires = "input")]
     pub version: Option<String>,
 

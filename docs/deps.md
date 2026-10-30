@@ -10,7 +10,7 @@ ubucargo deps [<INPUT> [<VERSION>]] [--suite <SUITE>] \
   [--crates-io-api <URL>]
 ```
 
-Inputs can be crates.io crates (`serde` or `crate:serde`), local source packages (`./rust-serde` or `pkg:<PATH>`), local Cargo crates (`local:<PATH>`), Ubuntu Archive sources (`ubuntu:<SUITE>/<SOURCE>` or `<SUITE>/<SOURCE>`), Debian archive sources (`debian:<SUITE>/<SOURCE>`), or PPA sources (`ppa:<OWNER>/<NAME>/<SERIES>/<SOURCE>`). Omitting the input reads the nearest parent package containing `debian/changelog`. An optional positional `<VERSION>` selects an exact Cargo version for crates.io or Debian version for published inputs; these inputs default to the highest published version. Package and local Cargo inputs use their current version. See [input and version selection](package.md#input-and-version-selection) for details.
+Inputs can be crates.io crates (`serde` or `crate:serde`), local source packages (`./rust-serde` or `pkg:<PATH>`), local Cargo crates (`local:<PATH>`), Ubuntu Archive sources (`ubuntu:<SUITE>/<SOURCE>` or `<SUITE>/<SOURCE>`), Debian archive sources (`debian:<SUITE>/<SOURCE>`), or PPA sources (`ppa:<OWNER>/<NAME>/<SERIES>/<SOURCE>`). Omitting the input reads the nearest parent package containing `debian/changelog`. An optional positional `<VERSION>` selects a Cargo version or version prefix for crates.io, or an exact Debian version for published inputs; these inputs default to the latest eligible release. Package and local Cargo inputs use their current version. See [input and version selection](package.md#input-and-version-selection) for details.
 
 Crates.io and `local:` inputs generate fresh packaging in temporary directories, using default debcargo configuration plus `whitelist = ["*"]` to retain all source files during dependency inspection. Local package and published inputs read maintained `debian/control` and optional `debian/tests/control` directly. For these inputs, inspection needs the maintained control files and changelog. Existing package files remain unchanged during inspection.
 
@@ -70,7 +70,7 @@ ubuntu:resolute availability: rust-rand 0.8.5-1
 
 For a Debian checking suite, the archive line uses its qualified selector, for example `debian:unstable availability: rust-rand 0.8.5-1`.
 
-For crates.io inputs, a required metadata API lookup resolves the canonical crate name and highest non-yanked stable version before generation. Names such as `serde-json` resolve to their published spelling, `serde_json`. Lookup failures stop the command with exit status 2. Requests use reqwest's default timeouts.
+For crates.io inputs, a required metadata API lookup resolves the canonical crate name and selected release before generation. Version prefixes select the highest matching non-yanked stable release; omitting the version selects the highest non-yanked stable release overall. Names such as `serde-json` resolve to their published spelling, `serde_json`. Lookup failures stop the command with exit status 2. Requests use reqwest's default timeouts.
 
 For local and published package inputs, crates.io availability is advisory. A missing crate displays `not published`, a crate with no eligible stable version displays `no stable release`, and request or metadata failures display `unavailable`. Dependency results and exit status follow the dependency checks.
 

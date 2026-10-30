@@ -7,12 +7,12 @@ use serde::Deserialize;
 
 use crate::resolve::normalize_crate_name;
 
-/// Published crate identity and highest non-yanked stable release.
+/// Published crate identity and non-yanked stable releases.
 pub struct Crate {
     /// Canonical published package name.
     pub name: String,
-    /// Highest stable version, when one is published.
-    pub latest_version: Option<Version>,
+    /// Non-yanked stable releases in descending semantic precedence.
+    pub versions: Vec<Version>,
 }
 
 /// Identity and version records returned by the crate metadata endpoint.
@@ -41,7 +41,7 @@ struct ReleaseMetadata {
     yanked: bool,
 }
 
-/// Queries a crate's canonical name and latest stable release, returning `None` for HTTP 404.
+/// Queries a crate's canonical name and stable releases, returning `None` for HTTP 404.
 pub fn read_crate(crate_name: &str, api: &str) -> Result<Option<Crate>> {
     if crate_name.is_empty()
         || !crate_name
@@ -70,22 +70,18 @@ pub fn read_crate(crate_name: &str, api: &str) -> Result<Option<Crate>> {
             metadata.identity.name
         );
     }
-    let mut latest: Option<Version> = None;
+    let mut versions = Vec::new();
     for release in metadata.versions {
         let version = Version::parse(&release.num)
             .with_context(|| format!("parse crates.io version for {crate_name}"))?;
         if release.yanked || !version.pre.is_empty() {
             continue;
         }
-        if latest
-            .as_ref()
-            .is_none_or(|old| version.cmp_precedence(old).is_gt())
-        {
-            latest = Some(version);
-        }
+        versions.push(version);
     }
+    versions.sort_by(|left, right| right.cmp_precedence(left));
     Ok(Some(Crate {
         name: metadata.identity.name,
-        latest_version: latest,
+        versions,
     }))
 }

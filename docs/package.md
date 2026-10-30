@@ -20,7 +20,7 @@ Debcargo diagnostics appear on stderr after successful generation or release res
 
 | Input selector | Selected input | Version selection |
 | --- | --- | --- |
-| `crate:serde` | Crates.io upstream release | Exact Cargo `<VERSION>`; default latest |
+| `crate:serde` | Crates.io upstream release | Cargo version or version prefix; default latest |
 | `ubuntu:resolute/rust-serde` | Published Ubuntu source package | Exact Debian `<VERSION>`; default highest published |
 | `debian:unstable/rust-serde` | Published Debian source package | Exact Debian `<VERSION>`; default highest published |
 | `ppa:<OWNER>/<NAME>/<SERIES>/<SOURCE>` | Published public PPA source package | Exact Debian `<VERSION>`; default highest published |
@@ -45,7 +45,7 @@ For Debian inputs, `<SUITE>` selects exactly that suite from `https://deb.debian
 
 For crates.io inputs, both commands query the crates.io metadata API to resolve the canonical published name, treating hyphens, underscores, and case as equivalent. For example, `serde-json` resolves to `serde_json`. `--crates-io-api <URL>` overrides the metadata API base URL, which defaults to `https://crates.io/api/v1`.
 
-Omitting `<VERSION>` selects the highest non-yanked stable release from the same response. An exact request may select a prerelease or yanked release. Crates published only as prereleases require an exact version.
+Omitting `<VERSION>` selects the highest non-yanked stable release from the same response. A version prefix selects the highest non-yanked stable release with matching version components: `1` selects the latest `1.x.x`, and `1.2` selects the latest `1.2.x`. A full version such as `1.2.3` selects that exact release. An exact request may select a prerelease or yanked release. Crates published only as prereleases require an exact version.
 
 For dependency-checking suites, pockets, and additional PPAs, see [`ubucargo deps`](deps.md).
 
@@ -123,6 +123,9 @@ ubucargo package serde
 
 # Create a particular release in a chosen directory.
 ubucargo package serde 1.0.220 --package-dir ./rust-serde
+
+# Create the latest release in serde's 1.0 line.
+ubucargo package serde 1.0
 
 # Create a package from an unpublished local crate.
 ubucargo package local:../example --package-dir ./rust-example

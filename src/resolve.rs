@@ -25,7 +25,7 @@ pub struct CrateSelection {
 
 /// Upstream selection requested independently of the package destination.
 pub enum CrateRequest<'a> {
-    /// A crates.io crate and optional exact Cargo version.
+    /// A crates.io crate and optional Cargo version or version prefix.
     Registry {
         name: &'a str,
         version: Option<&'a str>,
@@ -127,9 +127,24 @@ pub fn resolve_package(
             }
             let metadata = crates_io::read_crate(name, crates_io_api)?
                 .with_context(|| format!("crate {name} is not published on crates.io"))?;
-            latest_version = metadata.latest_version;
+            latest_version = metadata.versions.first().cloned();
             let version = if let Some(version) = version {
-                version.to_owned()
+                if version.split('.').count() < 3 {
+                    let prefix = format!("{version}.");
+                    metadata
+                        .versions
+                        .iter()
+                        .find(|candidate| candidate.to_string().starts_with(&prefix))
+                        .with_context(|| {
+                            format!(
+                                "crate {} has no non-yanked stable release matching version prefix {version:?}",
+                                metadata.name
+                            )
+                        })?
+                        .to_string()
+                } else {
+                    version.to_owned()
+                }
             } else {
                 latest_version
                     .as_ref()
